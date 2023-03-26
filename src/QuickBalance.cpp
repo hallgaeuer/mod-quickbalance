@@ -65,13 +65,17 @@ public:
     QuickBalanceCreatureInfo(float damageMultiplier, float healthMultiplier, float manaMultiplier)
             : DamageMultiplier(damageMultiplier), HealthMultiplier(healthMultiplier), ManaMultiplier(manaMultiplier) {}
 
+    uint32 OriginalHealth = 0;
+    uint32 OriginalMana = 0;
     float DamageMultiplier = 1;
     float HealthMultiplier = 1;
     float ManaMultiplier = 1;
+    uint32 BalanceDataTime = 0;
 };
 
 typedef std::pair<uint32, uint32> intPair;
 static bool enabled;
+static uint32 balanceDataLoadedTimestamp = 0;
 static std::unordered_map<uint32, QuickBalanceMultiplierConfig> mapConfigurations;
 static std::unordered_map<intPair , QuickBalanceMultiplierConfig, boost::hash<intPair>> mapCreatureConfigurations;
 
@@ -134,6 +138,10 @@ class QuickBalance_WorldScript : public WorldScript
                             )
                     );
                 }
+
+                balanceDataLoadedTimestamp = (uint32) round(std::time(nullptr));
+
+                LOG_INFO("module", "QuickBalance: Data loaded at {}", balanceDataLoadedTimestamp);
             } while (result->NextRow());
         }
     }
@@ -215,7 +223,7 @@ public:
     {
     }
 
-    void OnCreatureAddWorld(Creature* creature) override
+    void OnAllCreatureUpdate(Creature* creature, uint32 /*diff*/) override
     {
         if (!enabled)
             return;
@@ -239,8 +247,20 @@ public:
             return;
         }
 
+        auto *creatureInfo = creature->CustomData.GetDefault<QuickBalanceCreatureInfo>("QuickBalanceCreatureInfo");
+
+        // Balancing was already applied and no recalculation is needed for this creature
+        if (creatureInfo->BalanceDataTime == balanceDataLoadedTimestamp) {
+            return;
+        }
+
+        // Store original max health and mana on first call
+        if (creatureInfo->BalanceDataTime == 0) {
+            creatureInfo->OriginalHealth = creature->GetMaxHealth();
+            creatureInfo->OriginalMana = creature->GetMaxPower(POWER_MANA);
+        }
+
         CreatureTemplate const *creatureTemplate = creature->GetCreatureTemplate();
-        auto *creatureInfo=creature->CustomData.GetDefault<QuickBalanceCreatureInfo>("QuickBalanceCreatureInfo");
 
         //CreatureTemplate const *creatureTemplate = creature->GetCreatureTemplate();
         InstanceMap* instanceMap = ((InstanceMap*)sMapMgr->FindMap(creature->GetMapId(), creature->GetInstanceId()));
@@ -267,38 +287,40 @@ public:
         }
 
         if (!config.has_value()) {
+            // Nothing to do. Set flag in creatureinfo to skip the above steps on next calculation
+            creatureInfo->BalanceDataTime = balanceDataLoadedTimestamp;
+
             return;
         }
 
+        creatureInfo->BalanceDataTime = balanceDataLoadedTimestamp;
         creatureInfo->DamageMultiplier = config.value().DamageMultiplier;
         creatureInfo->HealthMultiplier = config.value().HealthMultiplier;
         creatureInfo->ManaMultiplier = config.value().ManaMultiplier;
 
-        uint32 prevMaxHealth = creature->GetMaxHealth();
-        uint32 prevMaxPower = creature->GetMaxPower(POWER_MANA);
-        uint32 prevHealth = creature->GetHealth();
-        uint32 prevPower = creature->GetPower(POWER_MANA);
+        float healthPercentage = creature->GetHealthPct();
+        float manaPercentage = creature->GetPowerPct(POWER_MANA);
         Powers prevPowerType = creature->getPowerType();
 
-        uint32 scaledHealth = round((float) prevMaxHealth * creatureInfo->HealthMultiplier);
-        uint32 scaledPower = round((float) prevMaxPower * creatureInfo->ManaMultiplier);
+        uint32 scaledMaxHealth = round((float) creatureInfo->OriginalHealth * creatureInfo->HealthMultiplier);
+        uint32 scaledMaxMana = round((float) creatureInfo->OriginalMana * creatureInfo->ManaMultiplier);
 
-        creature->SetCreateHealth(scaledHealth);
-        creature->SetMaxHealth(scaledHealth);
+        creature->SetCreateHealth(scaledMaxHealth);
+        creature->SetMaxHealth(scaledMaxHealth);
         creature->ResetPlayerDamageReq();
-        creature->SetCreateMana(scaledPower);
-        creature->SetMaxPower(POWER_MANA, scaledPower);
+        creature->SetCreateMana(scaledMaxMana);
+        creature->SetMaxPower(POWER_MANA, scaledMaxMana);
         creature->SetModifierValue(UNIT_MOD_ENERGY, BASE_VALUE, (float)100.0f);
         creature->SetModifierValue(UNIT_MOD_RAGE, BASE_VALUE, (float)100.0f);
-        creature->SetModifierValue(UNIT_MOD_HEALTH, BASE_VALUE, (float)scaledHealth);
-        creature->SetModifierValue(UNIT_MOD_MANA, BASE_VALUE, (float)scaledPower);
+        creature->SetModifierValue(UNIT_MOD_HEALTH, BASE_VALUE, (float)scaledMaxHealth);
+        creature->SetModifierValue(UNIT_MOD_MANA, BASE_VALUE, (float)scaledMaxMana);
 
-        uint32 scaledCurHealth=prevHealth && prevMaxHealth ? float(scaledHealth)/float(prevMaxHealth)*float(prevHealth) : 0;
-        uint32 scaledCurPower=prevPower && prevMaxPower  ? float(scaledPower)/float(prevMaxPower)*float(prevPower) : 0;
+        uint32 scaledCurHealth = float(scaledMaxHealth) * (healthPercentage / 100);
+        uint32 scaledCurMana = float(scaledMaxMana) * (manaPercentage / 100);
 
         creature->SetHealth(scaledCurHealth);
         if (prevPowerType == POWER_MANA)
-            creature->SetPower(POWER_MANA, scaledCurPower);
+            creature->SetPower(POWER_MANA, scaledCurMana);
         else
             creature->setPowerType(prevPowerType); // fix creatures with different power types
 
