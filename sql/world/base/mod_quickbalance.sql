@@ -1,5 +1,4 @@
-DROP TABLE IF EXISTS mod_quickbalance_modifier;
-CREATE TABLE mod_quickbalance_modifier
+CREATE TABLE IF NOT EXISTS mod_quickbalance_modifier
 (
     Map INT DEFAULT 0 NOT NULL,
     Creature INT DEFAULT 0 NOT NULL,
@@ -11,6 +10,3 @@ CREATE TABLE mod_quickbalance_modifier
 
     PRIMARY KEY (Map, Creature)
 );
-
-insert into mod_quickbalance_modifier (Map, Creature, DamageModifier, HealthModifier, ManaModifier, ArmorModifier, Comment)
-values  (409, 0, 0.8, 0.5, 1, 1, 'Molten Core');
