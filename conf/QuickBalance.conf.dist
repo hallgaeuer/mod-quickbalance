@@ -1,0 +1,23 @@
+[worldserver]
+
+#
+###################################################################################################
+
+###################################################################################################
+#
+# AUTOBALANCE ANNOUNCE
+#
+#     QuickBalanceAnnounce.enable
+#        Announce the module on login if it is enabled
+#        Default:     1 (1 = ON, 0 = OFF)
+
+QuickBalanceAnnounce.enable=1
+
+#
+# AUTOBALANCE OPTIONS
+#
+#     QuickBalance.enable
+#        Enable/Disable the quickbalance system
+#        Default:     1 (1 = ON, 0 = OFF)
+
+QuickBalance.enable=1
