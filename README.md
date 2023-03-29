@@ -4,7 +4,7 @@
 This module is intended to provide fixed balance adjustments for raids and dungeons (NOT autobalancing).
 
 It creates multiple new tables in the world database: 
-* `mod_quickbalance_modifier_map` Allows to define multiplier vlues for whole maps.  
+* `mod_quickbalance_modifier_map` Allows to define multiplier values for whole maps.  
 * `mod_quickbalance_modifier_creature` Allows to define multiplier values for specific creatures (by creature entry). Does override the map value, if one exists
  
 Each table has the following common fields:
