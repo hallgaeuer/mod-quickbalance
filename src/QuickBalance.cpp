@@ -73,11 +73,13 @@ public:
     uint32 BalanceDataTime = 0;
 };
 
-typedef std::pair<uint32, uint32> intPair;
+typedef std::pair<uint32, uint8> int32int8Pair;
+typedef std::unordered_map<int32int8Pair , QuickBalanceMultiplierConfig, boost::hash<int32int8Pair>> modifierStorage;
+
 static bool enabled;
 static uint32 balanceDataLoadedTimestamp = 0;
-static std::unordered_map<uint32, QuickBalanceMultiplierConfig> mapConfigurations;
-static std::unordered_map<intPair , QuickBalanceMultiplierConfig, boost::hash<intPair>> mapCreatureConfigurations;
+static modifierStorage mapConfigurations;
+static modifierStorage creatureConfigurations;
 
 class QuickBalance_WorldScript : public WorldScript
 {
@@ -95,55 +97,85 @@ class QuickBalance_WorldScript : public WorldScript
     {
     }
 
+    void LoadModifiers()
+    {
+        LoadMapModifiers();
+        LoadCreatureModifiers();
+
+        balanceDataLoadedTimestamp = (uint32) round(std::time(nullptr));
+        LOG_INFO("module", "QuickBalance: Map data loaded at {}", balanceDataLoadedTimestamp);
+    }
+
+    void LoadMapModifiers() {
+        mapConfigurations.clear();
+        QueryResult result = WorldDatabase.Query(
+                "SELECT Map, Difficulty, DamageModifier, HealthModifier, ManaModifier, ArmorModifier FROM mod_quickbalance_modifier_map");
+
+        if (!result) {
+            return;
+        }
+
+        do {
+            Field *fields = result->Fetch();
+
+            uint32 map = fields[0].Get<uint32>();
+            uint32 difficulty = fields[1].Get<uint32>();
+
+            QuickBalanceMultiplierConfig modifiers{
+                    fields[2].Get<float>(),
+                    fields[3].Get<float>(),
+                    fields[4].Get<float>(),
+                    fields[5].Get<float>()
+            };
+
+            mapConfigurations.insert(
+                std::pair<int32int8Pair, QuickBalanceMultiplierConfig>(
+                        int32int8Pair(map, difficulty),
+                        modifiers
+                )
+            );
+
+        } while (result->NextRow());
+    }
+
+    void LoadCreatureModifiers() {
+        creatureConfigurations.clear();
+        QueryResult result = WorldDatabase.Query(
+                "SELECT CreatureEntry, Difficulty, DamageModifier, HealthModifier, ManaModifier, ArmorModifier FROM mod_quickbalance_modifier_creature");
+
+        if (!result) {
+            return;
+        }
+
+        do {
+            Field *fields = result->Fetch();
+
+            uint32 creatureEntry = fields[0].Get<uint32>();
+            uint32 difficulty = fields[1].Get<uint32>();
+
+            QuickBalanceMultiplierConfig modifiers{
+                    fields[2].Get<float>(),
+                    fields[3].Get<float>(),
+                    fields[4].Get<float>(),
+                    fields[5].Get<float>()
+            };
+
+            creatureConfigurations.insert(
+                std::pair<int32int8Pair , QuickBalanceMultiplierConfig>(
+                        int32int8Pair(creatureEntry, difficulty),
+                        modifiers
+                )
+            );
+
+        } while (result->NextRow());
+    }
+
     void SetInitialWorldSettings()
     {
         // Initialize stuff and read config
         enabled = sConfigMgr->GetOption<bool>("QuickBalance.enable", 1);
 
-        mapConfigurations.clear();
-        mapCreatureConfigurations.clear();
-
-        QueryResult result = WorldDatabase.Query("SELECT Map, Creature, DamageModifier, HealthModifier, ManaModifier, ArmorModifier FROM mod_quickbalance_modifier");
-
-        if (result)
-        {
-            do
-            {
-                Field* fields = result->Fetch();
-
-                uint32 map = fields[0].Get<uint32>();
-                uint32 creature = fields[1].Get<uint32>();
-                float damageModifier = fields[2].Get<float>();
-                float healthModifier = fields[3].Get<float>();
-                float manaModifier = fields[4].Get<float>();
-                float armorModifier = fields[5].Get<float>();
-
-                QuickBalanceMultiplierConfig modifiers {damageModifier, healthModifier, manaModifier, armorModifier};
-
-                // Determine what storage to push into
-                // Map + Creature is set
-                if (map && creature) {
-                    mapCreatureConfigurations.insert(
-                            std::pair<intPair, QuickBalanceMultiplierConfig>(
-                                    intPair(map, creature),
-                                    modifiers
-                            )
-                    );
-                }
-                else if (fields[0].Get<uint32>()) {
-                    mapConfigurations.insert(
-                            std::pair<uint32, QuickBalanceMultiplierConfig>(
-                                    map,
-                                    modifiers
-                            )
-                    );
-                }
-
-                balanceDataLoadedTimestamp = (uint32) round(std::time(nullptr));
-
-                LOG_INFO("module", "QuickBalance: Data loaded at {}", balanceDataLoadedTimestamp);
-            } while (result->NextRow());
-        }
+        LoadModifiers();
     }
 };
 
@@ -196,7 +228,7 @@ class QuickBalance_UnitScript : public UnitScript
     }
 
 
-    uint32 _Modifer_DealDamage(Unit* target, Unit* attacker, uint32 damage)
+    uint32 _Modifer_DealDamage(Unit* /*target*/, Unit* attacker, uint32 damage)
     {
         if (!enabled)
             return damage;
@@ -260,27 +292,24 @@ public:
             creatureInfo->OriginalMana = creature->GetMaxPower(POWER_MANA);
         }
 
-        CreatureTemplate const *creatureTemplate = creature->GetCreatureTemplate();
-
-        //CreatureTemplate const *creatureTemplate = creature->GetCreatureTemplate();
-        InstanceMap* instanceMap = ((InstanceMap*)sMapMgr->FindMap(creature->GetMapId(), creature->GetInstanceId()));
-        uint32 mapId = instanceMap->GetEntry()->MapID;
+        uint32 mapId = creature->GetMap()->GetEntry()->MapID;
+        uint8 difficulty = creature->GetMap()->GetSpawnMode();
 
         std::optional<QuickBalanceMultiplierConfig> config;
 
         if (!config.has_value()) {
-            // Specific Map + Creature Multiplier config
-            intPair mapAndCreature = std::make_pair(mapId, creatureTemplate->Entry);
+            int32int8Pair creatureAndDifficulty = std::make_pair(creature->GetEntry(), difficulty);
 
-            auto mapCreatureIterator = mapCreatureConfigurations.find(mapAndCreature);
-            if (mapCreatureIterator != mapCreatureConfigurations.end()) {
-                config.emplace(mapCreatureIterator->second);
+            auto creatureIterator = creatureConfigurations.find(creatureAndDifficulty);
+            if (creatureIterator != creatureConfigurations.end()) {
+                config.emplace(creatureIterator->second);
             }
         }
 
         if (!config.has_value()) {
-            // Whole map multiplier config
-            auto mapIterator = mapConfigurations.find(mapId);
+            int32int8Pair mapAndDifficulty = std::make_pair(mapId, difficulty);
+
+            auto mapIterator = mapConfigurations.find(mapAndDifficulty);
             if (mapIterator != mapConfigurations.end()) {
                 config.emplace(mapIterator->second);
             }
