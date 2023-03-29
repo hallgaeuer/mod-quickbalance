@@ -103,7 +103,7 @@ class QuickBalance_WorldScript : public WorldScript
         LoadCreatureModifiers();
 
         balanceDataLoadedTimestamp = (uint32) round(std::time(nullptr));
-        LOG_INFO("module", "QuickBalance: Map data loaded at {}", balanceDataLoadedTimestamp);
+        LOG_INFO("module", "QuickBalance: Modifier data loaded at {}", balanceDataLoadedTimestamp);
     }
 
     void LoadMapModifiers() {
