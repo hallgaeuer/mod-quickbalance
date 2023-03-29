@@ -3,9 +3,12 @@
 
 This module is intended to provide fixed balance adjustments for raids and dungeons (NOT autobalancing).
 
-It creates a new table `mod_quickbalance_modifier` in the world database containing the following fields (see also sql folder):
-* `Map` - Map-ID the scaling should be applied to
-* `Creature` - Creature Entry the scaling should be applied to (optional). If empty (0), the scaling will be applied to all creatures in  the `Map`
+It creates multiple new tables in the world database: 
+* `mod_quickbalance_modifier_map` Allows to define multiplier vlues for whole maps.  
+* `mod_quickbalance_modifier_creature` Allows to define multiplier values for specific creatures (by creature entry). Does override the map value, if one exists
+ 
+Each table has the following common fields:
+
 * `DamageModifier` - All damage received by the player is multiplied by this modifier. So if you want to reduce damage by half, this should be set to `0.5`
 * `HealthModifier` - Creature health is multiplied by this modifier
 * `ManaModifier` - Creature mana is multiplied by this modifier
@@ -19,7 +22,8 @@ Might be subject to change in the future to another command, since the database 
 
 ## TODO
 
-Probably needs some more logic to correctly handle heroic modes and whatnot.
+* Implement ArmorModifier
+* Implement logic for another table mod_quickbalance_modifier_spell to easily adjust the damage of specific spells
 
 ## Credits 
 
