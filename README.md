@@ -9,6 +9,11 @@ It creates multiple new tables in the world database:
  
 Each table has the following common fields:
 
+* `Difficulty` - The difficulty this modifier should be applied to.
+* * 0 = Normal Dungeon / 10 man normal raid
+* * 1 = Heroic Dungeon / 25 man normal raid
+* * 2 = 10 man heroic raid
+* * 3 = 25 man heroic raid
 * `DamageModifier` - All damage received by the player is multiplied by this modifier. So if you want to reduce damage by half, this should be set to `0.5`
 * `HealthModifier` - Creature health is multiplied by this modifier
 * `ManaModifier` - Creature mana is multiplied by this modifier
