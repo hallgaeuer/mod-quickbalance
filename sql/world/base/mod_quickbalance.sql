@@ -24,13 +24,11 @@ CREATE TABLE IF NOT EXISTS mod_quickbalance_modifier_creature
     PRIMARY KEY (CreatureEntry, Difficulty)
 );
 
-/* Spell modifiers not yet implemented */
 CREATE TABLE IF NOT EXISTS mod_quickbalance_modifier_spell
 (
     Spell INT DEFAULT 0 NOT NULL,
-    Difficulty INT DEFAULT 0 NOT NULL,
     DamageModifier FLOAT DEFAULT 1 NOT NULL,
     Comment CHAR(100) DEFAULT '',
 
-    PRIMARY KEY (Spell, Difficulty)
+    PRIMARY KEY (Spell)
 );

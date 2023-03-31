@@ -47,21 +47,21 @@
 
 using namespace Acore::ChatCommands;
 
-class QuickBalanceMultiplierConfig {
-  public:
-    QuickBalanceMultiplierConfig(float damageMultiplier, float healthMultiplier, float manaMultiplier, float armorMultiplier)
-        : DamageMultiplier(damageMultiplier), HealthMultiplier(healthMultiplier), ManaMultiplier(manaMultiplier), ArmorMultiplier(armorMultiplier) {}
-
+struct QuickBalanceMultiplierConfig {
     float DamageMultiplier = 1;
     float HealthMultiplier = 1;
     float ManaMultiplier = 1;
     float ArmorMultiplier = 1;
 };
 
-class QuickBalanceCreatureInfo : public DataMap::Base
-{
+struct QuickBalanceSpellMultiplierConfig {
+    float DamageMultiplier = 1;
+};
+
+class QuickBalanceCreatureInfo : public DataMap::Base {
 public:
     QuickBalanceCreatureInfo() = default;
+
     QuickBalanceCreatureInfo(float damageMultiplier, float healthMultiplier, float manaMultiplier)
             : DamageMultiplier(damageMultiplier), HealthMultiplier(healthMultiplier), ManaMultiplier(manaMultiplier) {}
 
@@ -74,33 +74,34 @@ public:
 };
 
 typedef std::pair<uint32, uint8> int32int8Pair;
-typedef std::unordered_map<int32int8Pair , QuickBalanceMultiplierConfig, boost::hash<int32int8Pair>> modifierStorage;
+typedef std::unordered_map<int32int8Pair, QuickBalanceMultiplierConfig, boost::hash<int32int8Pair>> modifierStorage;
 
 static bool enabled;
 static uint32 balanceDataLoadedTimestamp = 0;
+// Modifiers for maps
 static modifierStorage mapConfigurations;
+// Modifiers for creatures
 static modifierStorage creatureConfigurations;
+// Modifiers for spells
+static std::unordered_map<uint32, QuickBalanceSpellMultiplierConfig> spellConfigurations;
 
-class QuickBalance_WorldScript : public WorldScript
-{
-    public:
+class QuickBalance_WorldScript : public WorldScript {
+public:
     QuickBalance_WorldScript()
-        : WorldScript("QuickBalance_WorldScript")
-    {
+            : WorldScript("QuickBalance_WorldScript") {
     }
 
-    void OnBeforeConfigLoad(bool /*reload*/) override
-    {
+    void OnBeforeConfigLoad(bool /*reload*/) override {
         SetInitialWorldSettings();
     }
-    void OnStartup() override
-    {
+
+    void OnStartup() override {
     }
 
-    void LoadModifiers()
-    {
+    void LoadModifiers() {
         LoadMapModifiers();
         LoadCreatureModifiers();
+        LoadSpellModifiers();
 
         balanceDataLoadedTimestamp = (uint32) round(std::time(nullptr));
         LOG_INFO("module", "QuickBalance: Modifier data loaded at {}", balanceDataLoadedTimestamp);
@@ -129,10 +130,10 @@ class QuickBalance_WorldScript : public WorldScript
             };
 
             mapConfigurations.insert(
-                std::pair<int32int8Pair, QuickBalanceMultiplierConfig>(
-                        int32int8Pair(map, difficulty),
-                        modifiers
-                )
+                    std::pair<int32int8Pair, QuickBalanceMultiplierConfig>(
+                            int32int8Pair(map, difficulty),
+                            modifiers
+                    )
             );
 
         } while (result->NextRow());
@@ -161,17 +162,44 @@ class QuickBalance_WorldScript : public WorldScript
             };
 
             creatureConfigurations.insert(
-                std::pair<int32int8Pair , QuickBalanceMultiplierConfig>(
-                        int32int8Pair(creatureEntry, difficulty),
-                        modifiers
-                )
+                    std::pair<int32int8Pair, QuickBalanceMultiplierConfig>(
+                            int32int8Pair(creatureEntry, difficulty),
+                            modifiers
+                    )
             );
 
         } while (result->NextRow());
     }
 
-    void SetInitialWorldSettings()
-    {
+    void LoadSpellModifiers() {
+        spellConfigurations.clear();
+        QueryResult result = WorldDatabase.Query(
+                "SELECT Spell, DamageModifier FROM mod_quickbalance_modifier_spell");
+
+        if (!result) {
+            return;
+        }
+
+        do {
+            Field *fields = result->Fetch();
+
+            uint32 spellId = fields[0].Get<uint32>();
+
+            QuickBalanceSpellMultiplierConfig modifiers{
+                    fields[1].Get<float>(),
+            };
+
+            spellConfigurations.insert(
+                    std::pair<uint32, QuickBalanceSpellMultiplierConfig>(
+                            spellId,
+                            modifiers
+                    )
+            );
+
+        } while (result->NextRow());
+    }
+
+    void SetInitialWorldSettings() {
         // Initialize stuff and read config
         enabled = sConfigMgr->GetOption<bool>("QuickBalance.enable", 1);
 
@@ -179,57 +207,60 @@ class QuickBalance_WorldScript : public WorldScript
     }
 };
 
-class QuickBalance_PlayerScript : public PlayerScript
-{
-    public:
-        QuickBalance_PlayerScript()
-            : PlayerScript("QuickBalance_PlayerScript")
-        {
-        }
+class QuickBalance_PlayerScript : public PlayerScript {
+public:
+    QuickBalance_PlayerScript()
+            : PlayerScript("QuickBalance_PlayerScript") {
+    }
 
-        void OnLogin(Player *player) override
-        {
-            if ((sConfigMgr->GetOption<bool>("QuickBalanceAnnounce.enable", true)) && (sConfigMgr->GetOption<bool>("QuickBalance.enable", true))) {
-                ChatHandler(player->GetSession()).PSendSysMessage("This server is running the |cff4CFF00QuickBalance |rmodule.");
-            }
+    void OnLogin(Player *player) override {
+        if ((sConfigMgr->GetOption<bool>("QuickBalanceAnnounce.enable", true)) &&
+            (sConfigMgr->GetOption<bool>("QuickBalance.enable", true))) {
+            ChatHandler(player->GetSession()).PSendSysMessage(
+                    "This server is running the |cff4CFF00QuickBalance |rmodule.");
         }
+    }
 };
 
-class QuickBalance_UnitScript : public UnitScript
-{
-    public:
+class QuickBalance_UnitScript : public UnitScript {
+public:
     QuickBalance_UnitScript()
-        : UnitScript("QuickBalance_UnitScript", true)
-    {
+            : UnitScript("QuickBalance_UnitScript", true) {
     }
 
-    uint32 DealDamage(Unit* AttackerUnit, Unit *playerVictim, uint32 damage, DamageEffectType /*damagetype*/) override
-    {
-        return _Modifer_DealDamage(playerVictim, AttackerUnit, damage);
+    uint32 DealDamage(Unit *AttackerUnit, Unit *playerVictim, uint32 damage, DamageEffectType /*damagetype*/) override {
+        return _Modifer_CreatureDamage(playerVictim, AttackerUnit, damage);
     }
 
-    void ModifyPeriodicDamageAurasTick(Unit* target, Unit* attacker, uint32& damage, SpellInfo const* /*spellInfo*/) override
-    {
-        damage = _Modifer_DealDamage(target, attacker, damage);
+    void
+    ModifyPeriodicDamageAurasTick(Unit *target, Unit *attacker, uint32 &damage, SpellInfo const *spellInfo) override {
+        damage = _Modifer_SpellDamage(damage, spellInfo);
+        damage = _Modifer_CreatureDamage(target, attacker, damage);
     }
 
-    void ModifySpellDamageTaken(Unit* target, Unit* attacker, int32& damage, SpellInfo const* /*spellInfo*/) override
-    {
-        damage = _Modifer_DealDamage(target, attacker, damage);
+    void ModifySpellDamageTaken(Unit *target, Unit *attacker, int32 &damage, SpellInfo const *spellInfo) override {
+        damage = _Modifer_SpellDamage(damage, spellInfo);
+        damage = _Modifer_CreatureDamage(target, attacker, damage);
     }
 
-    void ModifyMeleeDamage(Unit* target, Unit* attacker, uint32& damage) override
-    {
-        damage = _Modifer_DealDamage(target, attacker, damage);
+    void ModifyMeleeDamage(Unit *target, Unit *attacker, uint32 &damage) override {
+        damage = _Modifer_CreatureDamage(target, attacker, damage);
     }
 
-    void ModifyHealReceived(Unit* target, Unit* attacker, uint32& damage, SpellInfo const* /*spellInfo*/) override {
-        damage = _Modifer_DealDamage(target, attacker, damage);
+    void ModifyHealReceived(Unit *target, Unit *attacker, uint32 &damage, SpellInfo const * /*spellInfo*/) override {
+        damage = _Modifer_CreatureDamage(target, attacker, damage);
     }
 
+    uint32 _Modifer_SpellDamage(uint32 damage, SpellInfo const *spellInfo) {
+        auto iterator = spellConfigurations.find(spellInfo->Id);
+        if (iterator != spellConfigurations.end()) {
+            damage = damage * iterator->second.DamageMultiplier;
+        }
 
-    uint32 _Modifer_DealDamage(Unit* /*target*/, Unit* attacker, uint32 damage)
-    {
+        return damage;
+    }
+
+    uint32 _Modifer_CreatureDamage(Unit * /*target*/, Unit *attacker, uint32 damage) {
         if (!enabled)
             return damage;
 
@@ -240,31 +271,26 @@ class QuickBalance_UnitScript : public UnitScript
             return damage;
 
         auto *creatureInfo = attacker->CustomData.GetDefault<QuickBalanceCreatureInfo>("QuickBalanceCreatureInfo");
-        //LOG_INFO("module", "QuickBalance: DamageMultiplier {}", creatureInfo->DamageMultiplier);
 
         return damage * creatureInfo->DamageMultiplier;
     }
 };
 
 
-class QuickBalance_AllCreatureScript : public AllCreatureScript
-{
+class QuickBalance_AllCreatureScript : public AllCreatureScript {
 public:
     QuickBalance_AllCreatureScript()
-        : AllCreatureScript("QuickBalance_AllCreatureScript")
-    {
+            : AllCreatureScript("QuickBalance_AllCreatureScript") {
     }
 
-    void OnAllCreatureUpdate(Creature* creature, uint32 /*diff*/) override
-    {
+    void OnAllCreatureUpdate(Creature *creature, uint32 /*diff*/) override {
         if (!enabled)
             return;
 
         ModifyCreatureAttributes(creature);
     }
 
-    void ModifyCreatureAttributes(Creature* creature)
-    {
+    void ModifyCreatureAttributes(Creature *creature) {
         if (!creature || !creature->GetMap())
             return;
 
@@ -274,8 +300,8 @@ public:
         if (!creature->GetMap()->IsDungeon() && !creature->GetMap()->IsBattleground())
             return;
 
-        if (((creature->IsHunterPet() || creature->IsPet() || creature->IsSummon()) && creature->IsControlledByPlayer()))
-        {
+        if (((creature->IsHunterPet() || creature->IsPet() || creature->IsSummon()) &&
+             creature->IsControlledByPlayer())) {
             return;
         }
 
@@ -339,10 +365,10 @@ public:
         creature->ResetPlayerDamageReq();
         creature->SetCreateMana(scaledMaxMana);
         creature->SetMaxPower(POWER_MANA, scaledMaxMana);
-        creature->SetModifierValue(UNIT_MOD_ENERGY, BASE_VALUE, (float)100.0f);
-        creature->SetModifierValue(UNIT_MOD_RAGE, BASE_VALUE, (float)100.0f);
-        creature->SetModifierValue(UNIT_MOD_HEALTH, BASE_VALUE, (float)scaledMaxHealth);
-        creature->SetModifierValue(UNIT_MOD_MANA, BASE_VALUE, (float)scaledMaxMana);
+        creature->SetModifierValue(UNIT_MOD_ENERGY, BASE_VALUE, (float) 100.0f);
+        creature->SetModifierValue(UNIT_MOD_RAGE, BASE_VALUE, (float) 100.0f);
+        creature->SetModifierValue(UNIT_MOD_HEALTH, BASE_VALUE, (float) scaledMaxHealth);
+        creature->SetModifierValue(UNIT_MOD_MANA, BASE_VALUE, (float) scaledMaxMana);
 
         uint32 scaledCurHealth = float(scaledMaxHealth) * (healthPercentage / 100);
         uint32 scaledCurMana = float(scaledMaxMana) * (manaPercentage / 100);
@@ -357,8 +383,7 @@ public:
     }
 };
 
-void AddQuickBalanceScripts()
-{
+void AddQuickBalanceScripts() {
     new QuickBalance_WorldScript();
     new QuickBalance_PlayerScript();
     new QuickBalance_UnitScript();
