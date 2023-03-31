@@ -5,7 +5,7 @@
 
 ###################################################################################################
 #
-# AUTOBALANCE ANNOUNCE
+# QUICKBALANCE ANNOUNCE
 #
 #     QuickBalanceAnnounce.enable
 #        Announce the module on login if it is enabled
@@ -14,7 +14,7 @@
 QuickBalanceAnnounce.enable=1
 
 #
-# AUTOBALANCE OPTIONS
+# QUICKBALANCE OPTIONS
 #
 #     QuickBalance.enable
 #        Enable/Disable the quickbalance system
