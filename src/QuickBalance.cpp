@@ -77,6 +77,7 @@ typedef std::pair<uint32, uint8> int32int8Pair;
 typedef std::unordered_map<int32int8Pair, QuickBalanceMultiplierConfig, boost::hash<int32int8Pair>> modifierStorage;
 
 static bool enabled;
+static float globalHealthMultiplier, globalDamageMultiplier;
 static uint32 balanceDataLoadedTimestamp = 0;
 // Modifiers for maps
 static modifierStorage mapConfigurations;
@@ -202,6 +203,8 @@ public:
     void SetInitialWorldSettings() {
         // Initialize stuff and read config
         enabled = sConfigMgr->GetOption<bool>("QuickBalance.enable", 1);
+        globalHealthMultiplier = sConfigMgr->GetOption<float>("QuickBalance.rate.health", 1.0f);
+        globalDamageMultiplier = sConfigMgr->GetOption<float>("QuickBalance.rate.damage", 1.0f);
 
         LoadModifiers();
     }
@@ -252,6 +255,9 @@ public:
     }
 
     uint32 _Modifer_SpellDamage(uint32 damage, SpellInfo const *spellInfo) {
+        if (!enabled)
+            return damage;
+
         auto iterator = spellConfigurations.find(spellInfo->Id);
         if (iterator != spellConfigurations.end()) {
             damage = damage * iterator->second.DamageMultiplier;
@@ -349,8 +355,8 @@ public:
         }
 
         creatureInfo->BalanceDataTime = balanceDataLoadedTimestamp;
-        creatureInfo->DamageMultiplier = config.value().DamageMultiplier;
-        creatureInfo->HealthMultiplier = config.value().HealthMultiplier;
+        creatureInfo->DamageMultiplier = config.value().DamageMultiplier * globalDamageMultiplier;
+        creatureInfo->HealthMultiplier = config.value().HealthMultiplier * globalHealthMultiplier;
         creatureInfo->ManaMultiplier = config.value().ManaMultiplier;
 
         float healthPercentage = creature->GetHealthPct();

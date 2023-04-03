@@ -21,3 +21,13 @@ QuickBalanceAnnounce.enable=1
 #        Default:     1 (1 = ON, 0 = OFF)
 
 QuickBalance.enable=1
+
+#
+#     QuickBalance.rate.*
+#        You can tune all rates increasing/decreasing difficulty in a linear way
+#        Will get multiplied to existing multipliers in the database. So if for map xy a DamaMultiplier of 0.5 is defined and QuickBalance.rate.damage is set to 0.5 it will result in 0.5 * 0.5 = 0.25
+#        global = 2.0 , damage = 1.5  -> it means that damage will be 3.0
+#        Default:     1.0
+
+QuickBalance.rate.health = 1.0
+QuickBalance.rate.damage = 1.0
