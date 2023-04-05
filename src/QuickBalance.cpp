@@ -232,53 +232,41 @@ public:
     }
 
     uint32 DealDamage(Unit *AttackerUnit, Unit *playerVictim, uint32 damage, DamageEffectType /*damagetype*/) override {
-        return _Modifer_CreatureDamage(playerVictim, AttackerUnit, damage);
+        return damage * _DetermineDamageModifier(playerVictim, AttackerUnit, nullptr);
     }
 
-    void
-    ModifyPeriodicDamageAurasTick(Unit *target, Unit *attacker, uint32 &damage, SpellInfo const *spellInfo) override {
-        damage = _Modifer_SpellDamage(damage, spellInfo);
-        damage = _Modifer_CreatureDamage(target, attacker, damage);
+    void ModifyPeriodicDamageAurasTick(Unit *target, Unit *attacker, uint32 &damage, SpellInfo const *spellInfo) override {
+        damage = damage * _DetermineDamageModifier(target, attacker, spellInfo);
     }
 
     void ModifySpellDamageTaken(Unit *target, Unit *attacker, int32 &damage, SpellInfo const *spellInfo) override {
-        damage = _Modifer_SpellDamage(damage, spellInfo);
-        damage = _Modifer_CreatureDamage(target, attacker, damage);
+        damage = damage * _DetermineDamageModifier(target, attacker, spellInfo);
     }
 
     void ModifyMeleeDamage(Unit *target, Unit *attacker, uint32 &damage) override {
-        damage = _Modifer_CreatureDamage(target, attacker, damage);
+        damage = damage * _DetermineDamageModifier(target, attacker, nullptr);
     }
 
-    void ModifyHealReceived(Unit *target, Unit *attacker, uint32 &damage, SpellInfo const * /*spellInfo*/) override {
-        damage = _Modifer_CreatureDamage(target, attacker, damage);
-    }
-
-    uint32 _Modifer_SpellDamage(uint32 damage, SpellInfo const *spellInfo) {
+    float _DetermineDamageModifier(Unit */*target*/, Unit *attacker, SpellInfo const *spellInfo) {
         if (!enabled)
-            return damage;
+            return 1;
 
-        auto iterator = spellConfigurations.find(spellInfo->Id);
-        if (iterator != spellConfigurations.end()) {
-            damage = damage * iterator->second.DamageMultiplier;
+        // Determine modifier by Spell
+        if (spellInfo) {
+            auto iterator = spellConfigurations.find(spellInfo->Id);
+            if (iterator != spellConfigurations.end()) {
+                return iterator->second.DamageMultiplier;
+            }
         }
 
-        return damage;
-    }
-
-    uint32 _Modifer_CreatureDamage(Unit * /*target*/, Unit *attacker, uint32 damage) {
-        if (!enabled)
-            return damage;
-
+        // Determine modifier by creature
         if (!attacker || attacker->GetTypeId() == TYPEID_PLAYER || !attacker->IsInWorld())
-            return damage;
+            return 1;
 
         if ((attacker->IsHunterPet() || attacker->IsPet() || attacker->IsSummon()) && attacker->IsControlledByPlayer())
-            return damage;
+            return 1;
 
-        auto *creatureInfo = attacker->CustomData.GetDefault<QuickBalanceCreatureInfo>("QuickBalanceCreatureInfo");
-
-        return damage * creatureInfo->DamageMultiplier;
+        return attacker->CustomData.GetDefault<QuickBalanceCreatureInfo>("QuickBalanceCreatureInfo")->DamageMultiplier;
     }
 };
 

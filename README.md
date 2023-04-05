@@ -6,7 +6,7 @@ This module is intended to provide fixed balance adjustments for raids and dunge
 It creates multiple new tables in the world database: 
 * `mod_quickbalance_modifier_map` Allows to define multiplier values for whole maps.  
 * `mod_quickbalance_modifier_creature` Allows to define multiplier values for specific creatures (by creature entry). Does override the map value, if one exists (map + creature modifiers do NOT get multiplied with each other)
-* `mod_quickbalance_modifier_spells` Allows to define a damage multiplier for specific spells. 
+* `mod_quickbalance_modifier_spells` Allows to define a damage multiplier for specific spells. Does override the map or create value, if one exists (modifiers do NOT get multiplied with each other)
  
 Both `mod_quickbalance_modifier_map` and `mod_quickbalance_modifier_creature` tables share the following common fields:
 
@@ -31,7 +31,6 @@ Might be subject to change in the future to another command, since the database 
 ## TODO
 
 * Implement ArmorModifier
-* Implement logic for another table mod_quickbalance_modifier_spell to easily adjust the damage of specific spells
 
 ## Credits 
 
