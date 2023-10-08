@@ -13,15 +13,6 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-/*
- * Script Name: QuickBalance
- * Original Authors: KalCorp and Vaughner
- * Maintainer(s): AzerothCore
- * Original Script Name: QuickBalance
- * Description: Based on mod_quickbalance https://github.com/azerothcore/mod-quickbalance
- *     This module is intended to provide more direct controls to the balancing by just directly taking in modifiers AND allowing specific modifiers per create.
- *     This module DOES NOT autobalance. It is intended for servers that want to provide fixed balancing adjustments
- */
 
 #include "Configuration/Config.h"
 #include "Unit.h"
@@ -29,11 +20,9 @@
 #include "Creature.h"
 #include "Player.h"
 #include "ObjectMgr.h"
-#include "MapMgr.h"
 #include "World.h"
 #include "Map.h"
 #include "ScriptMgr.h"
-#include "Language.h"
 #include <vector>
 #include "QuickBalance.h"
 #include "ScriptMgrMacros.h"
