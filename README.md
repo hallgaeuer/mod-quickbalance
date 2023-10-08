@@ -28,7 +28,7 @@ The table `mod_quickbalance_modifier_spells` currently has the following columns
 
 ## Hot reloading
 
-You can directly reload changes in the `mod_quickbalance_modifier` table by typing `.reload config` in game or in the worldserver console.  
+You can directly reload changes in the `mod_quickbalance_modifier_*` tables by typing `.reload config` in game or in the worldserver console.  
 
 ## TODO
 
