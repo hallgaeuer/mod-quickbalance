@@ -266,34 +266,48 @@ public:
             : AllCreatureScript("QuickBalance_AllCreatureScript") {
     }
 
-    void OnAllCreatureUpdate(Creature *creature, uint32 /*diff*/) override {
-        if (!enabled)
-            return;
+    //void OnAllCreatureUpdate(Creature *creature, uint32 /*diff*/) override {
+    //    if (!enabled)
+    //        return;
+    //
+    //    ModifyCreatureAttributes(creature);
+    //}
 
-        ModifyCreatureAttributes(creature);
+    void Creature_SelectLevel(const CreatureTemplate* cinfo, Creature* creature) override
+    {
+        ModifyCreatureAttributes(creature, cinfo);
     }
 
-    void ModifyCreatureAttributes(Creature *creature) {
-        if (!creature || !creature->GetMap())
+    void ModifyCreatureAttributes(Creature *creature, const CreatureTemplate* cinfo) {
+        if (!creature || !creature->GetMap()) {
+            LOG_DEBUG("module.Quickbalance", "ModifyCreatureAttributes: Invalid creature or map");
             return;
+        }
 
-        if (!creature->IsAlive())
-            return;
+        // Removed the IsAlive check: (Some?) bosses are not "alive" while they respawn after a wipe (e.g. Kel'Thuzad)
+        //if (!creature->IsAlive()) {
+        //    LOG_ERROR("module.Quickbalance", "ModifyCreatureAttributes: Creature is not alive");
+        //    return;
+        //}
 
-        if (!creature->GetMap()->IsDungeon() && !creature->GetMap()->IsBattleground())
+        if (!creature->GetMap()->IsDungeon() && !creature->GetMap()->IsBattleground()) {
+            LOG_DEBUG("module.Quickbalance", "ModifyCreatureAttributes: Map is not a dungeon");
             return;
+        }
 
         if (((creature->IsHunterPet() || creature->IsPet() || creature->IsSummon()) &&
              creature->IsControlledByPlayer())) {
+            LOG_DEBUG("module.Quickbalance", "ModifyCreatureAttributes: Creature is pet");
             return;
         }
 
         auto *creatureInfo = creature->CustomData.GetDefault<QuickBalanceCreatureInfo>("QuickBalanceCreatureInfo");
 
+        // Commented out: Were now using the Creature_SelectLevel hook instead of OnAllCreatureUpdate. SelectLevel does always recalculate creature stats like health, mana, etc. So we need to always recalculate after SelectLevel as well
         // Balancing was already applied and no recalculation is needed for this creature
-        if (creatureInfo->BalanceDataTime == balanceDataLoadedTimestamp) {
-            return;
-        }
+        //if (creatureInfo->BalanceDataTime == balanceDataLoadedTimestamp) {
+        //    return;
+        //}
 
         // Store original max health and mana on first call
         if (creatureInfo->BalanceDataTime == 0) {
@@ -342,6 +356,8 @@ public:
 
         uint32 scaledMaxHealth = round((float) creatureInfo->OriginalHealth * creatureInfo->HealthMultiplier);
         uint32 scaledMaxMana = round((float) creatureInfo->OriginalMana * creatureInfo->ManaMultiplier);
+
+        LOG_DEBUG("module.Quickbalance", "ModifyCreatureAttributes: Set health of creature {} ({}) from {} to {}", cinfo->Name, creature->GetGUID().ToString(), creatureInfo->OriginalHealth, scaledMaxHealth);
 
         creature->SetCreateHealth(scaledMaxHealth);
         creature->SetMaxHealth(scaledMaxHealth);
